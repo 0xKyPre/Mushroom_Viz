@@ -1,0 +1,211 @@
+= Rice Analysis 🍚
+
+== Questions
+
+* What is the best feature to differentiate between `jasmine` and `baldo` rice?
+* Are `length` and `roundness` the key features to differentiate them?
+
+== Load & Inspect Data
+
+[source,python]
+----
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import numpy as np
+
+data = pd.read_csv("./dataset/Rice-Gonen andJasmine.csv")
+
+data = data.drop(columns=["id"]).dropna()
+data.head(10)
+----
+
+----
+<DATAFRAME HEAD OUTPUT HERE>
+----
+
+[source,python]
+----
+data.info()
+----
+
+----
+<DATAFRAME INFO OUTPUT HERE>
+----
+
+[source,python]
+----
+data.describe()
+----
+
+----
+<DESCRIBE OUTPUT HERE>
+----
+
+[source,python]
+----
+data["Class"].value_counts()
+----
+
+----
+Class
+jasmine    9985
+Gonen      8200
+----
+
+== Explanation of Features
+
+=== Axis Length and Aspect Ratio
+
+`aspect_ratio = major_axis / minor_axis`
+
+=== Eccentricity
+
+* `0` → perfect circle
+* `1` → perfect line
+
+=== Roundness
+
+`roundness = 4 * PI * area / perimeter^2`
+
+=== Extent
+
+`extent = area / bounding_box_area`
+
+=== Convex Area
+
+Standard convex hull pixel area.
+
+== Initial Thoughts
+
+* no units of measurement  
+* many features  
+* possible strong correlations  
+
+== Color Palette
+
+[source,python]
+----
+rice_palette = sns.xkcd_palette(["hot pink", "azure"])
+rice_palette
+----
+
+== Boxplots
+
+[source,python]
+----
+fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+axes = axes.flatten()
+
+sns.boxplot(
+    data=data,
+    hue="Class",
+    palette=rice_palette,
+    x='Perimeter',
+    whis=[1,99],
+    ax=axes[0],
+)
+axes[0].set_title('Rice-Perimeter')
+
+sns.boxplot(
+    data=data,
+    hue="Class",
+    palette=rice_palette,
+    x='Roundness',
+    whis=[1,99],
+    ax=axes[1],
+)
+axes[1].set_title('Rice-Roundness')
+
+plt.tight_layout()
+plt.show()
+----
+
+image::692b36c4e29e4cac50566a248603f7a9d109acd2.png[]
+
+== Correlation
+
+[source,python]
+----
+correlation = data.corr(numeric_only=True)
+sns.heatmap(correlation, annot=True)
+----
+image::2e6dd384ae61335c1252c438cea7d48936613d49.png[]
+
+[source,python]
+----
+corr_matrix = data.corr(numeric_only=True).abs()
+high_corr = corr_matrix[corr_matrix > 0.85]
+
+high_corr_pairs = (
+    corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    .stack()
+    .reset_index()
+)
+
+high_corr_pairs.columns = ["Feature 1", "Feature 2", "Correlation"]
+high_corr_pairs = high_corr_pairs[high_corr_pairs["Correlation"] > 0.85]
+
+print(high_corr_pairs.sort_values(by="Correlation"))
+----
+
+== Highly Correlated Features
+
+Dropping for clarity:
+
+[source,python]
+----
+cleaned_data = data.drop(columns=["ConvexArea", "EquivDiameter", "AspectRation"])
+----
+
+== Distributions
+
+[source,python]
+----
+cols = [
+    "Area", "MajorAxisLength", "MinorAxisLength", "Eccentricity",
+    "Extent", "Perimeter", "Roundness"
+]
+
+fig, axes = plt.subplots(nrows=4, ncols=2, figsize=(12, 20))
+axes = axes.flatten()
+
+for i, column in enumerate(cols):
+    sns.kdeplot(
+        data=cleaned_data,
+        hue="Class",
+        palette=rice_palette,
+        x=column,
+        ax=axes[i],
+        fill=True
+    )
+    axes[i].set_title(column)
+
+plt.tight_layout()
+plt.show()
+----
+
+image::0de4a04bb4a6264c0ebcf45b8baa9dbecfe9e25b.png[]
+
+== Key Features
+
+* Roundness  
+* Eccentricity  
+* Minor-Axis-Length  
+
+== PairGrid
+
+[source,python]
+----
+pair_grid = sns.PairGrid(data=cleaned_data.sample(500), hue='Class', palette=rice_palette)
+pair_grid.map_diag(sns.histplot, kde=True)
+pair_grid.map_offdiag(sns.kdeplot)
+----
+
+image::63ae96e60b5e3b0f76d5254e1a40d5405744620f.png[]
+
+== Final Answers
+
+* The best feature to differentiate `jasmine` and `baldo` is **minor-axis-length**.
+* `roundness` and `minor-axis-length` are good indicators.
+* `area` + `roundness` also work well.
